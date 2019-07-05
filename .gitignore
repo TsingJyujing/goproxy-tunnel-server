@@ -102,3 +102,8 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+bin/proxy
+*.gz
+certification/proxy.crt
+certification/proxy.key
+.idea/
