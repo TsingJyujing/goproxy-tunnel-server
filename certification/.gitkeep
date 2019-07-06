@@ -1,1 +1,2 @@
 Put your proxy.crt and proxy.key here.
+You may use bin/proxy keygen -C proxy to generate your certification

@@ -1,0 +1,14 @@
+[
+  {
+    "innet": 22,
+    "expose": 22022,
+    "bridge": 33022,
+    "comment": "iMac SSH Proxy"
+  },
+  {
+    "innet": 22,
+    "expose": 22001,
+    "bridge": 20101,
+    "comment": "RaspberryPi SSH Proxy"
+  }
+]

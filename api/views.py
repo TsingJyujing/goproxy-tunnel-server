@@ -1,4 +1,6 @@
 import atexit
+import json
+import traceback
 from threading import Lock
 from typing import Dict
 
@@ -17,8 +19,42 @@ tunnels: Dict[int, Tunnel] = {
     # Data
 }
 tunnels_op_lock = Lock()
-_check_thread = TunnelsCheckThread(tunnels, tunnels_op_lock, timeout=60)
+_check_thread = TunnelsCheckThread(tunnels, tunnels_op_lock)
 _check_thread.start()
+
+
+def _new_tunnel_id():
+    """
+    UNSAFE! Use it in mutex lock
+    :return:
+    """
+    global tunnel_id
+    tid = tunnel_id
+    tunnel_id += 1
+    return tid
+
+
+def _add_permanent_proxy():
+    try:
+        with open("permanent.json", "r") as fp:
+            with MutexLock(tunnels_op_lock) as _:
+                for item in json.load(fp):
+                    tid = _new_tunnel_id()
+                    tunnels[tid] = Tunnel(
+                        innet_port=int(item["innet"]),
+                        expose_port=int(item["expose"]),
+                        bridge_port=int(item["bridge"]),
+                        comment=str(item["comment"]),
+                        expired=-1
+                    )
+                    tunnels[tid].start()
+    except Exception as _:
+        print("Error while initialize permanent tunnels.")
+        if DEBUG:
+            print(traceback.format_exc())
+
+
+_add_permanent_proxy()
 
 
 def _close_all_tunnel():
@@ -67,28 +103,36 @@ def create_tunnel(request: HttpRequest):
         expose_port = request.POST["expose"]
     else:
         expose_port = None
+
     if "bridge" in request.POST:
         bridge_port = request.POST["bridge"]
     else:
         bridge_port = None
+
     if "comment" in request.POST:
         comment = request.POST["comment"]
     else:
         comment = ""
+
+    if "expire" in request.POST:
+        expire_time = float(request.POST["expire"])
+    else:
+        expire_time = 60.0
+
     with MutexLock(tunnels_op_lock) as _:
-        global tunnel_id
-        tunnel_id += 1
-        tunnels[tunnel_id] = Tunnel(
+        tid = _new_tunnel_id()
+        tunnels[tid] = Tunnel(
             innet_port=innet_port,
             bridge_port=bridge_port,
             expose_port=expose_port,
-            comment=comment
+            comment=comment,
+            expired=expire_time
         ).start()
-        print("Tunnel {} created by API.".format(tunnel_id))
+        print("Tunnel {} created by API.".format(tid))
         return {
             "status": "success",
-            "id": tunnel_id,
-            "tunnel": tunnels[tunnel_id].properties_dict()
+            "id": tid,
+            "tunnel": tunnels[tid].properties_dict()
         }
 
 

@@ -32,7 +32,8 @@ class Tunnel:
             innet_port: int,
             expose_port: int = None,
             bridge_port: int = None,
-            comment: str = ""
+            comment: str = "",
+            expired: float = 60
     ):
         """
         Manage a tunnel program
@@ -47,6 +48,7 @@ class Tunnel:
         self.client_process = None
         self.comment = comment
         self.last_check_time = time.time()
+        self.expire_time = expired
 
     def check(self):
         """
@@ -55,13 +57,21 @@ class Tunnel:
         """
         self.last_check_time = time.time()
 
-    def valid(self, timeout: float):
+    @property
+    def valid(self):
         """
         If over timeout second during last check, then invalid
         :param timeout:
         :return:
         """
-        return (time.time() - self.last_check_time) < timeout
+        if self.expire_time >= 0:
+            return (time.time() - self.last_check_time) < self.expire_time
+        else:
+            return True
+
+    @property
+    def invalid(self):
+        return not self.valid
 
     def start(self):
         socket_list = []
@@ -89,7 +99,7 @@ class Tunnel:
         )
 
         self.client_process = Popen(
-            [proxy_bin, "client", "--forever"] + _expand_parameters({
+            [proxy_bin, "server", "--forever"] + _expand_parameters({
                 "-C": "certification/proxy.crt",
                 "-K": "certification/proxy.key",
                 "-P": "127.0.0.1:{}".format(self.bridge_port),
@@ -135,25 +145,30 @@ class Tunnel:
         return self
 
     def properties_dict(self):
+        """
+        Return the properties
+        :return:
+        """
         return {
             "innet_port": self.innet_port,
             "bridge_port": self.bridge_port,
             "expose_port": self.expose_port,
-            "comment": self.comment
+            "comment": self.comment,
+            "expire_time": self.expire_time,
+            "last_check_time": self.last_check_time,
+            "from_last_check": time.time()-self.last_check_time
         }
 
 
 class TunnelsCheckThread(Thread):
-    def __init__(self, tunnels: Dict[int, Tunnel], op_lock: Lock, timeout: float = 60, interval: float = 2):
+    def __init__(self, tunnels: Dict[int, Tunnel], op_lock: Lock, interval: float = 2):
         """
         A thread to check invalid tunnels and shut them
         :param tunnels: tunnels list
         :param op_lock: operation lock
-        :param timeout: timeout of expire
         :param interval: interval between check
         """
         super(TunnelsCheckThread, self).__init__()
-        self.timeout = timeout
         self.tunnels = tunnels
         self.op_lock = op_lock
         self.is_stop = False
@@ -164,7 +179,7 @@ class TunnelsCheckThread(Thread):
             with MutexLock(self.op_lock) as _:
                 if DEBUG:
                     print("Checking timeout tunnels")
-                for tid in [x for x, tunnel in self.tunnels.items() if not tunnel.valid(timeout=self.timeout)]:
+                for tid in [x for x, tunnel in self.tunnels.items() if tunnel.invalid]:
                     tunnel = self.tunnels.pop(tid).stop()
                     print("Tunnel {} closed caused by timeout: {}".format(
                         tid,
