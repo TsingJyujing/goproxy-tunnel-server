@@ -24,15 +24,51 @@
 <body>
 
 <div class="container">
-    <div class="row-fluid">
-        <h1>Proxy Tunnel Manager</h1>
+    <div class="row">
+        <h1>Proxy Tunnel Manager</h1><br/>
     </div>
-    <div class="row-fluid">
-        <form class="form-control">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Innet Port</span>
+                <input type="text" class="form-control" placeholder="Must Input" aria-describedby="basic-addon1"
+                       id="innet_port">
+            </div>
+            <br/>
 
-        </form>
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Comment</span>
+                <input type="text" class="form-control" placeholder="" aria-describedby="basic-addon1"
+                       id="comment_info">
+            </div>
+            <br/>
+        </div>
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Expose Port</span>
+                <input type="text" class="form-control" placeholder="Auto" aria-describedby="basic-addon1"
+                       id="expose_port">
+            </div>
+            <br/>
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Bridge Port</span>
+                <input type="text" class="form-control" placeholder="Auto" aria-describedby="basic-addon1"
+                       id="bridge_port">
+            </div>
+            <br/>
+        </div>
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Expire</span>
+                <input type="text" class="form-control" placeholder="60" aria-describedby="basic-addon1"
+                       id="expire_time">
+            </div>
+            <br/>
+
+            <button type="button" class="btn btn-primary" onclick="create_service()">Create Tunnel</button>
+        </div>
     </div>
-    <div class="row-fluid">
+    <div class="row">
         <h2 class="sub-header">Service Monitor Panel</h2>
         <div class="table-responsive">
             <table class="table table-striped">
@@ -74,10 +110,10 @@
             tr.append(get_td("--"));
         } else {
             tr.append(get_td(
-                item["tunnel"]["expire_time"]
+                Math.round(item["tunnel"]["expire_time"] * 100.0) / 100.0
             ));
             tr.append(get_td(
-                item["tunnel"]["from_last_check"]
+                Math.round(item["tunnel"]["from_last_check"] * 100.0) / 100.0
             ));
         }
         tr.append(get_td().append(
@@ -137,6 +173,65 @@
     }
 
 
+    function create_service() {
+
+        const get_int_or_null = (s) => {
+            try {
+                const v = parseInt(s);
+                if (v.toString() === "NaN") {
+                    throw Error("");
+                }
+                return v;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const get_float_or_default = (s, defa) => {
+            try {
+                const v = parseFloat(s);
+                if (v.toString() === "NaN") {
+                    throw Error("");
+                }
+                return v;
+            } catch (e) {
+                return defa;
+            }
+        };
+
+        const innet_port = parseInt($("#innet_port").val());
+
+        const expose_port = get_int_or_null($("#expose_port").val());
+        const bridge_port = get_int_or_null($("#bridge_port").val());
+
+        const post_data = {
+            "innet": `${innet_port}`,
+            "comment": $("#comment_info").val(),
+            "expire": get_float_or_default($("#expire_time").val(), 60)
+        };
+
+        if (expose_port !== null) {
+            post_data["expose"] = expose_port
+        }
+
+        if (bridge_port !== null) {
+            post_data["bridge"] = bridge_port
+        }
+
+        $.post(
+            "/api/create",
+            post_data,
+            (resp) => {
+                const resp_obj = JSON.parse(resp)
+                if (resp_obj["status"] !== "success") {
+                    const tid = resp_obj["id"]
+                    alert(`Create tunnel ${tid} successfully.`)
+                } else {
+                    alert(`Create tunnel failed.`)
+                }
+            }
+        )
+    }
 
     $(() => {
         //initialization
