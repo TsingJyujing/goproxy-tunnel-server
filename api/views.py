@@ -143,7 +143,7 @@ def remove_tunnel(request: HttpRequest):
     :param request:
     :return:
     """
-    tid = int(request.GET["id"])
+    tid = int(request.POST["id"])
     if tid in tunnels:
         with MutexLock(tunnels_op_lock) as _:
             tunnel = tunnels.pop(tid)

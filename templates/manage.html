@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- 最新版本的 Bootstrap 核心 CSS 文件 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+    <!-- 可选的 Bootstrap 主题文件（一般不用引入） -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap-theme.min.css"
+          integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+    <!-- 最新的 Bootstrap 核心 JavaScript 文件 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"
+            integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+            crossorigin="anonymous"></script>
+    <title>Proxy Tunnel Manager</title>
+</head>
+
+<script
+        src="https://code.jquery.com/jquery-3.4.1.min.js"
+        integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+        crossorigin="anonymous"></script>
+<body>
+
+<div class="container">
+    <div class="row">
+        <h1>Proxy Tunnel Manager</h1><br/>
+    </div>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Innet Port</span>
+                <input type="text" class="form-control" placeholder="Must Input" aria-describedby="basic-addon1"
+                       id="innet_port">
+            </div>
+            <br/>
+
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Comment</span>
+                <input type="text" class="form-control" placeholder="" aria-describedby="basic-addon1"
+                       id="comment_info">
+            </div>
+            <br/>
+        </div>
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Expose Port</span>
+                <input type="text" class="form-control" placeholder="Auto" aria-describedby="basic-addon1"
+                       id="expose_port">
+            </div>
+            <br/>
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Bridge Port</span>
+                <input type="text" class="form-control" placeholder="Auto" aria-describedby="basic-addon1"
+                       id="bridge_port">
+            </div>
+            <br/>
+        </div>
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-addon" id="basic-addon1">Expire</span>
+                <input type="text" class="form-control" placeholder="60" aria-describedby="basic-addon1"
+                       id="expire_time">
+            </div>
+            <br/>
+
+            <button type="button" class="btn btn-primary" onclick="create_service()">Create Tunnel</button>
+        </div>
+    </div>
+    <div class="row">
+        <h2 class="sub-header">Service Monitor Panel</h2>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Innet</th>
+                    <th>Expose</th>
+                    <th>Bridge</th>
+                    <th>Comment</th>
+                    <th>Heartbeat Max Period</th>
+                    <th>Time Passed</th>
+                    <th>AZ-5</th>
+                </tr>
+                </thead>
+                <tbody id="table_body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+
+    /**
+     * Convert service detail to TR block
+     * @param item items list
+     * @returns {*|jQuery.fn.init|jQuery|HTMLElement}
+     */
+    function get_tr_by_item(item) {
+        const get_td = (value) => $("<td></td>").text(value);
+        const tr = $("<tr></tr>");
+        tr.append(get_td(item["id"]));
+        tr.append(get_td(item["tunnel"]["innet_port"]));
+        tr.append(get_td(item["tunnel"]["expose_port"]));
+        tr.append(get_td(item["tunnel"]["bridge_port"]));
+        tr.append(get_td(item["tunnel"]["comment"]));
+        if (item["tunnel"]["expire_time"] <= 0) {
+            tr.append(get_td("--"));
+            tr.append(get_td("--"));
+        } else {
+            tr.append(get_td(
+                Math.round(item["tunnel"]["expire_time"] * 100.0) / 100.0
+            ));
+            tr.append(get_td(
+                Math.round(item["tunnel"]["from_last_check"] * 100.0) / 100.0
+            ));
+        }
+        tr.append(get_td().append(
+            $("<div></div>").attr({
+                "class": "btn btn-danger",
+                "onclick": `stop_service(${item["id"]})`
+            }).text("STOP")
+        ));
+        return tr;
+    };
+
+    /**
+     *
+     */
+    function refresh_service_list() {
+        $.getJSON("/api/list", {}, (resp_obj) => {
+            try {
+                if (resp_obj["status"] !== "success") {
+                    console.error("Error while calling API:")
+                    console.error(resp_obj)
+                } else {
+                    const tbody = $("#table_body");
+                    tbody.empty();
+                    resp_obj["data"].forEach(item => {
+                        tbody.append(
+                            get_tr_by_item(item)
+                        )
+                    })
+                }
+            } catch (e) {
+                console.error("Uncaught exception");
+                console.error(e)
+            }
+
+        })
+    }
+
+    /**
+     * Stop tunnel service
+     * @param tid Tunnel ID
+     */
+    function stop_service(tid) {
+        if (confirm(`Do you really want to stop tunnel ${tid}?`)) {
+            $.post(
+                "/api/remove", {
+                    "id": "" + tid
+                }, (resp) => {
+                    const resp_obj = JSON.parse(resp);
+                    if (resp_obj["status"] !== "success") {
+                        alert(`Stop tunnel ${tid} successfully.`)
+                    } else {
+                        alert(`Stop tunnel ${tid} failed.`)
+                    }
+                }
+            )
+        }
+    }
+
+
+    function create_service() {
+
+        const get_int_or_null = (s) => {
+            try {
+                const v = parseInt(s);
+                if (v.toString() === "NaN") {
+                    throw Error("");
+                }
+                return v;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const get_float_or_default = (s, defa) => {
+            try {
+                const v = parseFloat(s);
+                if (v.toString() === "NaN") {
+                    throw Error("");
+                }
+                return v;
+            } catch (e) {
+                return defa;
+            }
+        };
+
+        const innet_port = parseInt($("#innet_port").val());
+
+        const expose_port = get_int_or_null($("#expose_port").val());
+        const bridge_port = get_int_or_null($("#bridge_port").val());
+
+        const post_data = {
+            "innet": `${innet_port}`,
+            "comment": $("#comment_info").val(),
+            "expire": get_float_or_default($("#expire_time").val(), 60)
+        };
+
+        if (expose_port !== null) {
+            post_data["expose"] = expose_port
+        }
+
+        if (bridge_port !== null) {
+            post_data["bridge"] = bridge_port
+        }
+
+        $.post(
+            "/api/create",
+            post_data,
+            (resp) => {
+                const resp_obj = JSON.parse(resp)
+                if (resp_obj["status"] !== "success") {
+                    const tid = resp_obj["id"]
+                    alert(`Create tunnel ${tid} successfully.`)
+                } else {
+                    alert(`Create tunnel failed.`)
+                }
+            }
+        )
+    }
+
+    $(() => {
+        //initialization
+    });
+
+    setInterval(refresh_service_list, 1000);
+
+</script>
+</body>
+</html>
