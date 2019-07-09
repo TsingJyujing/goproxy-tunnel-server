@@ -8,6 +8,31 @@ to reduce the connection leakage.
 
 The core is snail007's [goproxy](https://github.com/snail007/goproxy)
 
+## Quick Start
+
+### Start
+#### With Docker
+
+**Developing...but once you want to use docker, please set `--network host`**
+
+#### Manually
+
+```bash
+pip3 install django
+python3 manage.py runserver --noreload 0.0.0.0:8000
+```
+
+### Use UI
+
+Visit: `http://{your IP}:{service port}/ui/manager` to use the UI.
+With UI, you can create a proxy tunnel easily, strongly recommend set expire time is "-1" (means will not expire).
+Because we do not allow users to check manually, the interface(`/api/heartbeat`) is not designed for human.
+
+### Use API
+
+Use API is a more profession way to utilize this manager and it's strongly recommended.
+Please follow the API document below to creare/remove/check/list your tunnels!
+
 ## API document
 
 ### List all the tunnels
