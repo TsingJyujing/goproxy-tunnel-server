@@ -11,9 +11,18 @@ The core is snail007's [goproxy](https://github.com/snail007/goproxy)
 ## Quick Start
 
 ### Start
+
+
 #### With Docker
 
-**Developing...but once you want to use docker, please set `--network host`**
+```bash
+docker run -it --net host \
+    -e EXPOSE_PORT=8080 \
+    -v {your certification dir}:/app/cerfitication \
+    tsingjyujing/goproxy-tunnel-server:latest
+```
+
+**Build by youself:** `docker build -t tsingjyujing/goproxy-tunnel-server .`
 
 #### Manually
 
