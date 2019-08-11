@@ -172,8 +172,8 @@
 <div class="container">
     <div class="row">
         <div class="col-md-offset-3 col-md-6">
-            <form class="form-horizontal" action="/users/login/" method="post">
-                <span class="heading">用户登录</span>
+            <form class="form-horizontal" action="/ui/login" method="post">
+                <span class="heading">User Login</span>
                 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                 <div class="form-group">
                     <input type="text"
@@ -181,19 +181,19 @@
                            autofocus=""
                            id="id_username"
                            required=""
-                           placeholder="用户名"
+                           placeholder="User Name"
                            class="form-control"
                     >
                     <i class="fa fa-user"></i>
                 </div>
                 <div class="form-group help">
                     <input type="password" name="password" id="id_password" required="" class="form-control"
-                           placeholder="密　码">
+                           placeholder="Password">
                     <i class="fa fa-lock"></i>
                     <a href="#" class="fa fa-question-circle"></a>
                 </div>
                 <div class="form-group">
-                    <button type="submit" class="btn btn-default">登录</button>
+                    <button type="submit" class="btn btn-default">Login</button>
                 </div>
             </form>
         </div>
