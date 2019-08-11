@@ -162,7 +162,7 @@ class Tunnel:
             "comment": self.comment,
             "expire_time": self.expire_time,
             "last_check_time": self.last_check_time,
-            "from_last_check": time.time()-self.last_check_time
+            "from_last_check": time.time() - self.last_check_time
         }
 
 
@@ -179,6 +179,7 @@ class TunnelsCheckThread(Thread):
         self.op_lock = op_lock
         self.is_stop = False
         self.interval = interval
+        self.daemon = True
 
     def run(self) -> None:
         while not self.is_stop:

@@ -1,8 +1,10 @@
 import atexit
 import json
+import sys
 import traceback
 from threading import Lock
 from typing import Dict
+from warnings import warn
 
 from django.http import HttpRequest
 # Create your views here.
@@ -54,7 +56,10 @@ def _add_permanent_proxy():
             print(traceback.format_exc())
 
 
-_add_permanent_proxy()
+if sys.argv[1] == "runserver":
+    _add_permanent_proxy()
+else:
+    warn("Not runserver mode, permanent proxy will not started.")
 
 
 def _close_all_tunnel():
