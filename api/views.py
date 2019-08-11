@@ -11,7 +11,7 @@ from django.views.decorators.csrf import csrf_exempt
 from tunnel_manager.settings import DEBUG
 from util import MutexLock
 from util.goproxy import Tunnel, TunnelsCheckThread
-from util.http_response import response_json
+from util.http_response import response_json, check_authorization
 
 # Initialize
 tunnel_id = 0
@@ -72,6 +72,7 @@ def _close_all_tunnel():
 atexit.register(_close_all_tunnel)
 
 
+@check_authorization
 @response_json
 def get_proxy_list(request: HttpRequest):
     """
@@ -92,9 +93,11 @@ def get_proxy_list(request: HttpRequest):
 
 
 @csrf_exempt
+@check_authorization
 @response_json
 def create_tunnel(request: HttpRequest):
     """
+    Create a tunnel
     :param request:
     :return:
     """
@@ -137,6 +140,7 @@ def create_tunnel(request: HttpRequest):
 
 
 @csrf_exempt
+@check_authorization
 @response_json
 def remove_tunnel(request: HttpRequest):
     """
@@ -158,6 +162,7 @@ def remove_tunnel(request: HttpRequest):
 
 
 @csrf_exempt
+@check_authorization
 @response_json
 def tunnel_heartbeat(request: HttpRequest):
     """
@@ -179,6 +184,7 @@ def tunnel_heartbeat(request: HttpRequest):
 
 
 @csrf_exempt
+@check_authorization
 @response_json
 def query_tunnel(request: HttpRequest):
     """

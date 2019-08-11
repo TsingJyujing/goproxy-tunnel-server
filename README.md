@@ -18,9 +18,12 @@ The core is snail007's [goproxy](https://github.com/snail007/goproxy)
 ```bash
 docker run -it --net host \
     -e EXPOSE_PORT=8080 \
+    -e AUTHORIZE_KEYS={authorize key} \
     -v {your certification dir}:/app/cerfitication \
     tsingjyujing/goproxy-tunnel-server:latest
 ```
+
+Authorization key is optional only you wanna to control access of API.
 
 **Build by youself:** `docker build -t tsingjyujing/goproxy-tunnel-server .`
 
