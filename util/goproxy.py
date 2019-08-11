@@ -6,6 +6,7 @@ import socket
 import time
 from os import getcwd
 from os.path import join
+from platform import platform
 from subprocess import Popen, TimeoutExpired
 from threading import Lock, Thread
 from typing import Dict
@@ -13,7 +14,12 @@ from typing import Dict
 from tunnel_manager.settings import DEBUG
 from util import MutexLock
 
-proxy_bin = join(getcwd(), "bin", "proxy")
+if platform().startswith("Darwin"):
+    proxy_bin = join(getcwd(), "bin", "proxy.mac64")
+elif platform().startswith("Linux"):
+    proxy_bin = join(getcwd(), "bin", "proxy.amd64")
+else:
+    raise Exception("Platform not support: " + platform())
 
 
 def _expand_parameters(parameters: dict) -> list:
