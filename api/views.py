@@ -77,8 +77,8 @@ def _close_all_tunnel():
 atexit.register(_close_all_tunnel)
 
 
-@response_json
 @check_authorization
+@response_json
 def get_proxy_list(request: HttpRequest):
     """
     Get proxy list
@@ -98,8 +98,8 @@ def get_proxy_list(request: HttpRequest):
 
 
 @csrf_exempt
-@response_json
 @check_authorization
+@response_json
 def create_tunnel(request: HttpRequest):
     """
     Create a tunnel
@@ -145,8 +145,8 @@ def create_tunnel(request: HttpRequest):
 
 
 @csrf_exempt
-@response_json
 @check_authorization
+@response_json
 def remove_tunnel(request: HttpRequest):
     """
     :param request:
@@ -167,8 +167,8 @@ def remove_tunnel(request: HttpRequest):
 
 
 @csrf_exempt
-@response_json
 @check_authorization
+@response_json
 def tunnel_heartbeat(request: HttpRequest):
     """
     :param request:
@@ -189,8 +189,8 @@ def tunnel_heartbeat(request: HttpRequest):
 
 
 @csrf_exempt
-@response_json
 @check_authorization
+@response_json
 def query_tunnel(request: HttpRequest):
     """
     :param request:

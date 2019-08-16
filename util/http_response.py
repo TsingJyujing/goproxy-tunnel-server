@@ -189,6 +189,7 @@ def check_authorization(func) -> Callable:
             _authorize(request)
             return func(request)
         except:
+            time.sleep(0.5)
             return login_required(func)(request)
 
     return wrapper
