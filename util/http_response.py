@@ -15,6 +15,8 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpRequest
 
 # Auto load authorize key
+from tunnel_manager.settings import DEBUG
+
 _auth_key = set(os.environ.get("AUTHORIZE_KEYS").split(",")) if os.environ.get("AUTHORIZE_KEYS") is not None else None
 
 
@@ -96,11 +98,13 @@ def response_json(func):
         except Exception as ex:
             print("Error:" + str(ex), file=sys.stderr)
             print(traceback.format_exc(), file=sys.stderr)
-            return get_json_response({
+            resp = {
                 "status": "error",
-                "error_info": str(ex),
-                "trace_back": traceback.format_exc()
-            })
+                "error_info": str(ex)
+            }
+            if DEBUG:
+                resp["trace_back"] = traceback.format_exc()
+            return get_json_response(resp)
 
     return wrapper
 
