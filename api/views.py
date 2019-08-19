@@ -11,9 +11,7 @@ from django.http import HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 
 from tunnel_manager.settings import DEBUG
-from util import MutexLock
-from util.goproxy import Tunnel, TunnelsCheckThread
-from util.http_response import response_json, check_authorization
+from util import MutexLock, Tunnel, TunnelsCheckThread, response_json, check_authorization
 
 # Initialize
 tunnel_id = 0

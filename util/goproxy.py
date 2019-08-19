@@ -19,6 +19,8 @@ if platform().startswith("Darwin"):
 elif platform().startswith("Linux"):
     proxy_bin = join(getcwd(), "bin", "proxy.amd64")
 else:
+    # fixme Add win platform here
+    # fixme Identify the arch of PC/Server
     raise Exception("Platform not support: " + platform())
 
 
