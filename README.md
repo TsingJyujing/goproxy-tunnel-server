@@ -12,14 +12,14 @@ The core is snail007's [goproxy](https://github.com/snail007/goproxy)
 
 ### Start
 
-
 #### With Docker
 
 ```bash
 docker run -it --net host \
     -e EXPOSE_PORT=8080 \
     -e AUTHORIZE_KEYS={authorize key} \
-    -v {your certification dir}:/app/cerfitication \
+    -v {your certification dir}:/app/cerfitication/ \
+    -v {db path}:/app/db.sqlite3 \
     tsingjyujing/goproxy-tunnel-server:latest
 ```
 
@@ -216,4 +216,35 @@ Recheck a tunnel to reset the last check time (like heartbeat)
     "status": "success",
     "id": 1
 }
+```
+
+## Reference
+
+### Authorization
+
+To create a super user
+```bash
+python3 manage.py migrate
+python3 manage.py createsuperuser
+```
+
+### Permanent Connection Settings
+
+You can config some permanent connection in permanent.json, this is a example:
+
+```json
+[
+  {
+    "innet": 22,
+    "expose": 22022,
+    "bridge": 33022,
+    "comment": "iMac SSH Proxy"
+  },
+  {
+    "innet": 22,
+    "expose": 22001,
+    "bridge": 20101,
+    "comment": "RaspberryPi SSH Proxy"
+  }
+]
 ```

@@ -1,3 +1,4 @@
 # Created by .ignore support plugin (hsz.mobi)
 certification/proxy.crt
 certification/proxy.key
+db.sqlite3
