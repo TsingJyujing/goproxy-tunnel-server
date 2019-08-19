@@ -44,13 +44,18 @@ def get_request_get(request, key):
     return get_request_with_default(request, key, None)
 
 
-def get_json_response(obj):
+def get_json_response(obj, status_code: int = 200):
     """
     Create a http response
+    :param status_code: Http status code
     :param obj: object which json serializable
     :return:
     """
-    response = HttpResponse(json.dumps(obj), content_type="application/json")
+    response = HttpResponse(
+        json.dumps(obj),
+        content_type="application/json",
+        status=status_code
+    )
     return response
 
 
@@ -80,7 +85,7 @@ def response_json_error_info(func):
                 "status": "error",
                 "error_info": str(ex),
                 "trace_back": traceback.format_exc()
-            })
+            }, status_code=500)
 
     return wrapper
 
@@ -104,7 +109,7 @@ def response_json(func):
             }
             if DEBUG:
                 resp["trace_back"] = traceback.format_exc()
-            return get_json_response(resp)
+            return get_json_response(resp, status_code=500)
 
     return wrapper
 
@@ -132,7 +137,7 @@ def response_figure_image(func):
                 "status": "error",
                 "error_info": str(ex),
                 "trace_back": traceback.format_exc()
-            })
+            }, status_code=500)
 
     return wrapper
 
@@ -173,6 +178,18 @@ def _authorize(request: HttpRequest) -> None:
         raise Exception("Authorization failed caused by key not found.")
 
 
+def is_browser(request: HttpRequest) -> bool:
+    """
+    Classify the client type by user agent
+    :param request:
+    :return:
+    """
+    if "User-Agent" not in request.headers:
+        return False
+    else:
+        return request.headers.get("User-Agent").startswith("Mozilla")
+
+
 def check_authorization(func) -> Callable:
     """
     Auto check the authorization
@@ -189,7 +206,14 @@ def check_authorization(func) -> Callable:
             _authorize(request)
             return func(request)
         except:
+            # Different behavior between curl/postman/wget/... and browser
             time.sleep(0.5)
-            return login_required(func)(request)
+            if is_browser(request):
+                return login_required(func)(request)
+            else:
+                return get_json_response({
+                    "status": "error",
+                    "error_info": "Authorization failed."
+                }, status_code=401)
 
     return wrapper
