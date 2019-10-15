@@ -1,6 +1,7 @@
 import atexit
 import json
 import sys
+import time
 import traceback
 from threading import Lock
 from typing import Dict
@@ -14,7 +15,7 @@ from tunnel_manager.settings import DEBUG
 from util import MutexLock, Tunnel, TunnelsCheckThread, response_json, check_authorization
 
 # Initialize
-tunnel_id = 0
+
 tunnels: Dict[int, Tunnel] = {
     # Data
 }
@@ -22,6 +23,7 @@ tunnels_op_lock = Lock()
 _check_thread = TunnelsCheckThread(tunnels, tunnels_op_lock)
 _check_thread.start()
 
+tunnel_id = 0
 
 def _new_tunnel_id():
     """
@@ -29,9 +31,12 @@ def _new_tunnel_id():
     :return:
     """
     global tunnel_id
-    tid = tunnel_id
-    tunnel_id += 1
-    return tid
+    current_tick = int(time.time() * 1000)
+    if tunnel_id < current_tick:
+        tunnel_id = current_tick
+    else:
+        tunnel_id += 1
+    return tunnel_id
 
 
 def _add_permanent_proxy():
