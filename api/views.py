@@ -25,6 +25,7 @@ _check_thread.start()
 
 tunnel_id = 0
 
+
 def _new_tunnel_id():
     """
     UNSAFE! Use it in mutex lock
@@ -93,7 +94,7 @@ def get_proxy_list(request: HttpRequest):
         "data": [
             {
                 "id": tid,
-                "tunnel": tunnel.properties_dict()
+                "tunnel": tunnel.json
             }
             for tid, tunnel in tunnels.items()
         ]
@@ -143,7 +144,7 @@ def create_tunnel(request: HttpRequest):
         return {
             "status": "success",
             "id": tid,
-            "tunnel": tunnels[tid].properties_dict()
+            "tunnel": tunnels[tid].json
         }
 
 
@@ -205,7 +206,7 @@ def query_tunnel(request: HttpRequest):
             return {
                 "status": "success",
                 "id": tid,
-                "tunnel": tunnels[tid].properties_dict()
+                "tunnel": tunnels[tid].json
             }
     else:
         raise Exception("ID {} not found".format(tid))

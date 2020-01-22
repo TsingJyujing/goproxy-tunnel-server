@@ -2,17 +2,19 @@
 A wrapper of goproxy
 """
 import json
+import logging
 import socket
 import time
+import traceback
 from os import getcwd
 from os.path import join
 from platform import platform
 from subprocess import Popen, TimeoutExpired
 from threading import Lock, Thread
-from typing import Dict
-
-from tunnel_manager.settings import DEBUG
+from typing import Dict, List
 from util import MutexLock
+
+log = logging.getLogger(__file__)
 
 if platform().startswith("Darwin"):
     proxy_bin = join(getcwd(), "bin", "proxy.mac64")
@@ -34,29 +36,60 @@ def _expand_parameters(parameters: dict) -> list:
     return [str(e) for l in ([k, v] for k, v in parameters.items()) for e in l if e is not None]
 
 
-class Tunnel:
+def apply_ports(port_count: int):
+    """
+    Get k socket list
+    :param port_count:
+    :return:
+    """
+    socket_list = []
+    port_list = []
+    try:
+        for i in range(port_count):
+            sock = socket.socket()
+            sock.bind(('', 0))
+            _, port = sock.getsockname()
+            socket_list.append(sock)
+            port_list.append(port)
+    finally:
+        [sock.close() for sock in socket_list]
+    return port_list
+
+
+class ExposeConfig:
     def __init__(
             self,
             innet_port: int,
             expose_port: int = None,
+    ):
+        self.expose_port = expose_port
+        self.innet_port = innet_port
+
+    @property
+    def json(self):
+        return dict(
+            expose_port=self.expose_port,
+            innet_port=self.innet_port,
+        )
+
+
+class MultiTunnel:
+    def __init__(
+            self,
+            exposes: List[ExposeConfig],
             bridge_port: int = None,
             comment: str = "",
             expired: float = 60
     ):
-        """
-        Manage a tunnel program
-        :param innet_port: the tunnel proxy port to expose
-        :param expose_port: expose for client connect
-        :param bridge_port: bridge connection port
-        """
-        self.innet_port = innet_port
-        self.expose_port = expose_port
-        self.bridge_port = bridge_port
-        self.bridge_process = None
-        self.client_process = None
+        self.exposes = exposes
+        if len(exposes) <= 0:
+            log.warning("Do not have expose configuration, only bridge created.")
         self.comment = comment
+        self.bridge_port = bridge_port
         self.last_check_time = time.time()
         self.expire_time = expired
+        self.bridge_process = None
+        self.client_processes = []
 
     def check(self):
         """
@@ -77,27 +110,22 @@ class Tunnel:
         else:
             return True
 
-    @property
-    def invalid(self):
-        return not self.valid
-
     def start(self):
-        socket_list = []
-        if self.expose_port is None:
-            sock = socket.socket()
-            sock.bind(('', 0))
-            _, port = sock.getsockname()
-            socket_list.append(sock)
-            self.expose_port = port
+        # Apply ports
+        port_need_to_apply = 0
         if self.bridge_port is None:
-            sock = socket.socket()
-            sock.bind(('', 0))
-            _, port = sock.getsockname()
-            socket_list.append(sock)
-            self.bridge_port = port
+            port_need_to_apply += 1
+        for expose_config in self.exposes:
+            if expose_config.expose_port is None:
+                port_need_to_apply += 1
+        ports = apply_ports(port_need_to_apply)
+        if self.bridge_port is None:
+            self.bridge_port = ports.pop(0)
+        for expose_config in self.exposes:
+            if expose_config.expose_port is None:
+                expose_config.expose_port = ports.pop(0)
 
-        [sock.close() for sock in socket_list]
-
+        log.info("Starting bridge server at port: {}".format(self.bridge_port))
         self.bridge_process = Popen(
             [proxy_bin, "bridge", "--forever"] + _expand_parameters({
                 "-C": "certification/proxy.crt",
@@ -105,26 +133,23 @@ class Tunnel:
                 "-p": ":{}".format(self.bridge_port)
             })
         )
+        log.info("Bridge started in PID: {}".format(self.bridge_process.pid))
 
-        self.client_process = Popen(
-            [proxy_bin, "server", "--forever"] + _expand_parameters({
-                "-C": "certification/proxy.crt",
-                "-K": "certification/proxy.key",
-                "-P": "127.0.0.1:{}".format(self.bridge_port),
-                "-r": ":{}@:{}".format(self.expose_port, self.innet_port)
-            })
-        )
-        print("Starting proxy bridge {}-{}-{} at pid {} and {}".format(
-            self.innet_port,
-            self.bridge_port,
-            self.expose_port,
-            self.bridge_process.pid,
-            self.client_process.pid
-        ))
-        return self
+        for expose_config in self.exposes:
+            log.info("Starting client server at port: {}".format(self.bridge_port))
+            client_process = Popen(
+                [proxy_bin, "server", "--forever"] + _expand_parameters({
+                    "-C": "certification/proxy.crt",
+                    "-K": "certification/proxy.key",
+                    "-P": "127.0.0.1:{}".format(self.bridge_port),
+                    "-r": ":{}@:{}".format(expose_config.expose_port, expose_config.innet_port)
+                })
+            )
+            self.client_processes.append(client_process)
+            log.info("Client started in PID: {}".format(client_process.pid))
 
-    @classmethod
-    def __stop_process(cls, process: Popen, timeout: float = 5):
+    @staticmethod
+    def __stop_process(process: Popen, timeout: float = 5):
         try:
             pid = process.pid
             process.terminate()
@@ -134,33 +159,31 @@ class Tunnel:
                 process.kill()
                 print("Kill {}".format(pid))
         except:
-            pass
+            log.error("Other exception caughted during stopping PID {} caused by {}.".format(
+                process.pid,
+                traceback.format_exc()
+            ))
 
     def stop(self):
-        print("Stopping tunnel {}-{}-{} at pid {} and {}".format(
-            self.innet_port,
-            self.bridge_port,
-            self.expose_port,
-            self.bridge_process.pid,
-            self.client_process.pid
-        ))
-        self.__stop_process(
-            self.client_process
-        )
-        self.__stop_process(
-            self.bridge_process
-        )
+        log.info("Stopping the client process...")
+        for client_process in self.client_processes:
+            log.info("Stopping the PID: {}".format(client_process.pid))
+            self.__stop_process(client_process)
+        log.info("Stopping the bridge process...")
+        self.__stop_process(self.bridge_process)
         return self
 
-    def properties_dict(self):
+    @property
+    def json(self):
         """
         Return the properties
         :return:
         """
         return {
-            "innet_port": self.innet_port,
             "bridge_port": self.bridge_port,
-            "expose_port": self.expose_port,
+            "exposes": [
+                expose.json for expose in self.exposes
+            ],
             "comment": self.comment,
             "expire_time": self.expire_time,
             "last_check_time": self.last_check_time,
@@ -168,8 +191,34 @@ class Tunnel:
         }
 
 
+class Tunnel(MultiTunnel):
+    def __init__(
+            self,
+            innet_port: int,
+            expose_port: int = None,
+            bridge_port: int = None,
+            comment: str = "",
+            expired: float = 60
+    ):
+        """
+        Manage a tunnel program
+        :param innet_port: the tunnel proxy port to expose
+        :param expose_port: expose for client connect
+        :param bridge_port: bridge connection port
+        """
+        log.warning("Tunnel is deprecated, please use MultiTunnel instead.")
+        super().__init__(
+            [ExposeConfig(
+                innet_port, expose_port
+            )],
+            bridge_port=bridge_port,
+            comment=comment,
+            expired=expired
+        )
+
+
 class TunnelsCheckThread(Thread):
-    def __init__(self, tunnels: Dict[int, Tunnel], op_lock: Lock, interval: float = 2):
+    def __init__(self, tunnels: Dict[int, MultiTunnel], op_lock: Lock, interval: float = 2):
         """
         A thread to check invalid tunnels and shut them
         :param tunnels: tunnels list
@@ -186,13 +235,12 @@ class TunnelsCheckThread(Thread):
     def run(self) -> None:
         while not self.is_stop:
             with MutexLock(self.op_lock) as _:
-                if DEBUG:
-                    print("Checking timeout tunnels")
-                for tid in [x for x, tunnel in self.tunnels.items() if tunnel.invalid]:
+                log.debug("Checking the tunnels status.")
+                for tid in [x for x, tunnel in self.tunnels.items() if not tunnel.valid]:
                     tunnel = self.tunnels.pop(tid).stop()
-                    print("Tunnel {} closed caused by timeout: {}".format(
+                    log.info("Tunnel {} closed caused by expired: {}".format(
                         tid,
-                        json.dumps(tunnel.properties_dict())
+                        json.dumps(tunnel.json)
                     ))
             time.sleep(self.interval)
 
