@@ -1,29 +1,30 @@
 import atexit
 import json
+import logging
 import sys
 import time
-import traceback
 from threading import Lock
-from typing import Dict
-from warnings import warn
+from typing import Dict, Mapping
 
 from django.http import HttpRequest
 # Create your views here.
 from django.views.decorators.csrf import csrf_exempt
 
 from tunnel_manager.settings import DEBUG
-from util import MutexLock, Tunnel, TunnelsCheckThread, response_json, check_authorization
-
+from util import MutexLock, TunnelsCheckThread, response_json, check_authorization
 # Initialize
+from util.goproxy import ExposeConfig, MultiTunnel
 
-tunnels: Dict[int, Tunnel] = {
-    # Data
-}
+tunnels: Dict[int, MultiTunnel] = dict()
+
 tunnels_op_lock = Lock()
 _check_thread = TunnelsCheckThread(tunnels, tunnels_op_lock)
 _check_thread.start()
 
 tunnel_id = 0
+
+log = logging.getLogger(__file__)
+
 
 def _new_tunnel_id():
     """
@@ -39,30 +40,61 @@ def _new_tunnel_id():
     return tunnel_id
 
 
+def _create_from_dict(config: Mapping):
+    exposes = []
+    if "exposes" in config:
+        for pair_strs in (s.split("-") for s in config["exposes"].split(",")):
+            if len(pair_strs) == 2:
+                exposes.append(ExposeConfig(
+                    int(pair_strs[0]),
+                    int(pair_strs[1])
+                ))
+            elif len(pair_strs) == 1:
+                exposes.append(ExposeConfig(
+                    int(pair_strs[0]),
+                    None
+                ))
+            else:
+                log.error("Wrong expose configuration: {}".format(repr(pair_strs)))
+
+    elif "innet" in config:
+        exposes.append(
+            ExposeConfig(
+                int(config["innet"]),
+                int(config["expose"]) if "expose" in config else None
+            )
+        )
+    else:
+        raise ValueError("Can't find innet or exposes in configuration")
+
+    tunnel = MultiTunnel(
+        exposes,
+        bridge_port=int(config["bridge"]),
+        comment=config.get("comment", ""),
+        expired=config.get("expire", 60)
+    )
+
+    return tunnel
+
+
 def _add_permanent_proxy():
     try:
         with open("permanent.json", "r") as fp:
             with MutexLock(tunnels_op_lock) as _:
                 for item in json.load(fp):
+                    if "expire" not in item:
+                        item["expire"] = -1
                     tid = _new_tunnel_id()
-                    tunnels[tid] = Tunnel(
-                        innet_port=int(item["innet"]),
-                        expose_port=int(item["expose"]),
-                        bridge_port=int(item["bridge"]),
-                        comment=str(item["comment"]),
-                        expired=-1
-                    )
+                    tunnels[tid] = _create_from_dict(item)
                     tunnels[tid].start()
-    except Exception as _:
-        print("Error while initialize permanent tunnels.")
-        if DEBUG:
-            print(traceback.format_exc())
+    except Exception as ex:
+        log.error("Error while initialize permanent tunnels.", exc_info=ex)
 
 
 if sys.argv[1] == "runserver":
     _add_permanent_proxy()
 else:
-    warn("Not runserver mode, permanent proxy will not started.")
+    log.info("Not `runserver` mode, permanent proxy will not started.")
 
 
 def _close_all_tunnel():
@@ -73,7 +105,7 @@ def _close_all_tunnel():
     _check_thread.stop()
     tunnels_op_lock.acquire()
     for tid, tunnel in tunnels.items():
-        print("Releasing tunnel {}...".format(tid))
+        log.info("Releasing tunnel {}...".format(tid))
         tunnel.stop()
 
 
@@ -93,7 +125,7 @@ def get_proxy_list(request: HttpRequest):
         "data": [
             {
                 "id": tid,
-                "tunnel": tunnel.properties_dict()
+                "tunnel": tunnel.json
             }
             for tid, tunnel in tunnels.items()
         ]
@@ -109,41 +141,17 @@ def create_tunnel(request: HttpRequest):
     :param request:
     :return:
     """
-    innet_port = request.POST["innet"]
-    if "expose" in request.POST:
-        expose_port = request.POST["expose"]
-    else:
-        expose_port = None
-
-    if "bridge" in request.POST:
-        bridge_port = request.POST["bridge"]
-    else:
-        bridge_port = None
-
-    if "comment" in request.POST:
-        comment = request.POST["comment"]
-    else:
-        comment = ""
-
-    if "expire" in request.POST:
-        expire_time = float(request.POST["expire"])
-    else:
-        expire_time = 60.0
 
     with MutexLock(tunnels_op_lock) as _:
         tid = _new_tunnel_id()
-        tunnels[tid] = Tunnel(
-            innet_port=innet_port,
-            bridge_port=bridge_port,
-            expose_port=expose_port,
-            comment=comment,
-            expired=expire_time
-        ).start()
-        print("Tunnel {} created by API.".format(tid))
+        # noinspection PyTypeChecker
+        tunnels[tid] = _create_from_dict(request.POST)
+        tunnels[tid].start()
+        log.info("Tunnel {} created by API.".format(tid))
         return {
             "status": "success",
             "id": tid,
-            "tunnel": tunnels[tid].properties_dict()
+            "tunnel": tunnels[tid].json
         }
 
 
@@ -160,7 +168,7 @@ def remove_tunnel(request: HttpRequest):
         with MutexLock(tunnels_op_lock) as _:
             tunnel = tunnels.pop(tid)
             tunnel.stop()
-            print("Tunnel {} removed by API.".format(tid))
+            log.info("Tunnel {} removed by API.".format(tid))
             return {
                 "status": "success",
                 "id": tid
@@ -205,7 +213,7 @@ def query_tunnel(request: HttpRequest):
             return {
                 "status": "success",
                 "id": tid,
-                "tunnel": tunnels[tid].properties_dict()
+                "tunnel": tunnels[tid].json
             }
     else:
         raise Exception("ID {} not found".format(tid))
