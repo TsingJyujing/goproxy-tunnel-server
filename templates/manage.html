@@ -77,8 +77,7 @@
                 <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Innet</th>
-                    <th>Expose</th>
+                    <th>Exposes</th>
                     <th>Bridge</th>
                     <th>Comment</th>
                     <th>Heartbeat Max Period</th>
@@ -103,8 +102,11 @@
         const get_td = (value) => $("<td></td>").text(value);
         const tr = $("<tr></tr>");
         tr.append(get_td(item["id"]));
-        tr.append(get_td(item["tunnel"]["innet_port"]));
-        tr.append(get_td(item["tunnel"]["expose_port"]));
+        tr.append(get_td(
+            item["tunnel"]["exposes"].map(
+                (x)=>`${x.innet_port} -> ${x.expose_port}`
+            ).join("\n")
+        ));
         tr.append(get_td(item["tunnel"]["bridge_port"]));
         tr.append(get_td(item["tunnel"]["comment"]));
         if (item["tunnel"]["expire_time"] <= 0) {
