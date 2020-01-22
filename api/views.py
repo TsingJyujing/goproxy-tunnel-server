@@ -43,7 +43,7 @@ def _new_tunnel_id():
 def _create_from_dict(config: Mapping):
     exposes = []
     if "exposes" in config:
-        for pair_strs in (s.split("-")[0] for s in config["exposes"].split(",")):
+        for pair_strs in (s.split("-") for s in config["exposes"].split(",")):
             if len(pair_strs) == 2:
                 exposes.append(ExposeConfig(
                     int(pair_strs[0]),
@@ -82,6 +82,8 @@ def _add_permanent_proxy():
         with open("permanent.json", "r") as fp:
             with MutexLock(tunnels_op_lock) as _:
                 for item in json.load(fp):
+                    if "expire" not in item:
+                        item["expire"] = -1
                     tid = _new_tunnel_id()
                     tunnels[tid] = _create_from_dict(item)
                     tunnels[tid].start()
