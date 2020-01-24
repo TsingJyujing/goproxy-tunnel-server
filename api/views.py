@@ -69,7 +69,7 @@ def _create_from_dict(config: Mapping):
 
     tunnel = MultiTunnel(
         exposes,
-        bridge_port=int(config["bridge"]),
+        bridge_port=int(config["bridge"]) if "bridge" in config else None,
         comment=config.get("comment", ""),
         expired=config.get("expire", 60)
     )
